@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Text Editor → PDF</title>
+  <style>
+    :root{
+      --bg:#0f1216; --panel:#171b22; --accent:#4cc9f0; --text:#e6e9ef; --muted:#9aa4b2; --border:#2a2f38;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:var(--bg); color:var(--text); font:14px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    header{
+      padding:16px 20px; border-bottom:1px solid var(--border); background:var(--panel); position:sticky; top:0; z-index:10;
+      display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+    }
+    header h1{font-size:16px; margin:0; color:var(--accent)}
+    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .controls label{display:flex; flex-direction:column; font-size:12px; color:var(--muted)}
+    .controls input,.controls select{
+      background:#0c0f13; color:var(--text); border:1px solid var(--border); padding:8px 10px; border-radius:8px; min-width:160px;
+    }
+    .toolbar{
+      display:flex; flex-wrap:wrap; gap:8px; padding:10px 20px; border-bottom:1px solid var(--border); background:#12161c;
+      position:sticky; top:56px; z-index:9;
+    }
+    .btn{
+      background:#0c0f13; color:var(--text); border:1px solid var(--border); padding:8px 10px; border-radius:8px; cursor:pointer;
+    }
+    .btn:hover{border-color:#3a404b}
+    .btn.primary{background:var(--accent); color:#0b0e12; border-color:transparent; font-weight:600}
+    .editor-wrap{max-width:900px; margin:20px auto; padding:0 20px 40px}
+    #title{
+      width:100%; background:#0c0f13; color:var(--text); border:1px solid var(--border); padding:12px 14px; border-radius:10px; font-size:18px; margin-bottom:12px;
+    }
+    #editor{
+      background:#0c0f13; border:1px solid var(--border); border-radius:12px; min-height:600px; padding:18px; outline:none;
+    }
+    #editor:empty:before{content:"Mulai mengetik di sini…"; color:var(--muted)}
+    footer{
+      padding:16px 20px; border-top:1px solid var(--border); background:var(--panel); color:var(--muted); text-align:center;
+    }
+    /* Print-clean preview (optional) */
+    .exporting header,.exporting .toolbar{display:none !important}
+    .exporting #editor{border:none; background:white; color:black}
+    a{color:#7dd3fc}
+  </style>
+  <!-- jsPDF + html2canvas via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-1vZQmQmQeQkQkQmQmQ..." crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-bWvQy..." crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+  <header>
+    <h1>Text Editor → PDF</h1>
+    <div class="controls">
+      <label>
+        Judul dokumen
+        <input id="docTitle" type="text" placeholder="Judul di header PDF"/>
+      </label>
+      <label>
+        Nama file
+        <input id="fileName" type="text" placeholder="nama-file.pdf" value="dokumen.pdf"/>
+      </label>
+      <label>
+        Ukuran kertas
+        <select id="paperSize">
+          <option value="a4" selected>A4 (210×297 mm)</option>
+          <option value="letter">Letter (8.5×11 in)</option>
+          <option value="legal">Legal (8.5×14 in)</option>
+        </select>
+      </label>
+      <label>
+        Margin (mm)
+        <input id="marginMm" type="number" min="0" step="2" value="15"/>
+      </label>
+      <button id="exportBtn" class="btn primary">Export PDF</button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn" data-cmd="bold"><b>B</b></button>
+    <button class="btn" data-cmd="italic"><i>I</i></button>
+    <button class="btn" data-cmd="underline"><u>U</u></button>
+    <button class="btn" data-cmd="formatBlock" data-value="h2">H2</button>
+    <button class="btn" data-cmd="formatBlock" data-value="h3">H3</button>
+    <button class="btn" data-cmd="insertUnorderedList">• List</button>
+    <button class="btn" data-cmd="insertOrderedList">1. List</button>
+    <button class="btn" data-cmd="justifyLeft">Left</button>
+    <button class="btn" data-cmd="justifyCenter">Center</button>
+    <button class="btn" data-cmd="justifyRight">Right</button>
+    <button class="btn" id="linkBtn">Link</button>
+    <button class="btn" id="clearBtn">Clear</button>
+  </div>
+
+  <div class="editor-wrap">
+    <input id="title" type="text" placeholder="Judul halaman (opsional)"/>
+    <div id="editor" contenteditable="true">
+      <h2>Contoh dokumen</h2>
+      <p>Tulis konten kamu di sini. Gunakan toolbar untuk format teks, heading, dan list.</p>
+    </div>
+  </div>
+
+  <footer>
+    Dibuat ringan—cukup buka file ini di browser, edit, lalu export PDF.
+  </footer>
+
+  <script>
+    // Toolbar actions
+    document.querySelectorAll('.toolbar .btn[data-cmd]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const cmd = btn.getAttribute('data-cmd');
+        const val = btn.getAttribute('data-value') || null;
+        document.execCommand(cmd, false, val);
+      });
+    });
+
+    // Insert link
+    document.getElementById('linkBtn').addEventListener('click', ()=>{
+      const url = prompt('Masukkan URL:');
+      if(url) document.execCommand('createLink', false, url);
+    });
+
+    // Clear editor
+    document.getElementById('clearBtn').addEventListener('click', ()=>{
+      if(confirm('Kosongkan konten editor?')) document.getElementById('editor').innerHTML = '';
+    });
+
+    // Export to PDF
+    document.getElementById('exportBtn').addEventListener('click', async ()=>{
+      const { jsPDF } = window.jspdf;
+      const fileName = (document.getElementById('fileName').value || 'dokumen.pdf').replace(/\s+/g,'-');
+      const paper = document.getElementById('paperSize').value;
+      const marginMm = parseFloat(document.getElementById('marginMm').value) || 15;
+      const docTitle = document.getElementById('docTitle').value || '';
+
+      // Map paper sizes to jsPDF units (mm)
+      const sizes = {
+        a4: [210, 297],
+        letter: [215.9, 279.4],
+        legal: [215.9, 355.6]
+      };
+      const pageSize = sizes[paper] || sizes.a4;
+
+      // Prepare a clean export view
+      document.body.classList.add('exporting');
+
+      // Clone content into a temporary container for rendering
+      const temp = document.createElement('div');
+      temp.style.padding = '0';
+      temp.style.margin = '0';
+      temp.style.width = '800px'; // render width for better quality
+      temp.style.background = '#ffffff';
+      temp.style.color = '#000000';
+      temp.style.fontFamily = 'serif';
+      temp.style.lineHeight = '1.6';
+      temp.innerHTML = `
+        ${docTitle ? `<h1 style="margin:0 0 12px; font-size:22px;">${escapeHtml(docTitle)}</h1>` : ''}
+        ${document.getElementById('title').value ? `<h2 style="margin:0 0 8px; font-size:18px; color:#333;">${escapeHtml(document.getElementById('title').value)}</h2>` : ''}
+        <div>${document.getElementById('editor').innerHTML}</div>
+      `;
+      document.body.appendChild(temp);
+
+      // Render to canvas
+      const canvas = await html2canvas(temp, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+
+      // Create PDF
+      const pdf = new jsPDF({ unit: 'mm', format: pageSize, compress: true });
+
+      // Compute image dimensions to fit page with margins
+      const pageW = pageSize[0], pageH = pageSize[1];
+      const usableW = pageW - 2*marginMm;
+      const usableH = pageH - 2*marginMm;
+
+      // Convert canvas px to mm using 96 DPI baseline
+      const pxW = canvas.width, pxH = canvas.height;
+      const mmPerPx = 25.4 / 96;
+      const imgMmW = pxW * mmPerPx;
+      const imgMmH = pxH * mmPerPx;
+
+      // Scale to fit within usable area
+      const scale = Math.min(usableW / imgMmW, usableH / imgMmH);
+      const drawW = imgMmW * scale;
+      const drawH = imgMmH * scale;
+
+      let x = (pageW - drawW) / 2;
+      let y = marginMm;
+
+      // If content taller than one page, slice vertically
+      const slices = Math.ceil(drawH / usableH);
+      for(let i=0;i<slices;i++){
+        if(i>0) pdf.addPage();
+        const sliceTopPx = Math.floor((i * usableH / mmPerPx) / scale);
+        const sliceHeightPx = Math.floor((usableH / mmPerPx) / scale);
+
+        // Create slice canvas
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = pxW;
+        sliceCanvas.height = sliceHeightPx;
+        const sctx = sliceCanvas.getContext('2d');
+        sctx.fillStyle = '#ffffff';
+        sctx.fillRect(0,0,sliceCanvas.width,sliceCanvas.height);
+        sctx.drawImage(canvas, 0, -sliceTopPx);
+
+        const sliceImg = sliceCanvas.toDataURL('image/png');
+        pdf.addImage(sliceImg, 'PNG', x, marginMm, drawW, usableH, undefined, 'FAST');
+      }
+
+      pdf.save(fileName);
+
+      // Cleanup
+      document.body.removeChild(temp);
+      document.body.classList.remove('exporting');
+    });
+
+    function escapeHtml(str){
+      return String(str).replace(/[&<>"']/g, s=>({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      })[s]);
+    }
+  </script>
+</body>
+</html>
